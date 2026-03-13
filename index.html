@@ -201,19 +201,7 @@ let sidebarOpen = true;
 // ─── AUTH ─────────────────────────────────────────────────
 function startAuth() {
   const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code&scope=${encodeURIComponent(SCOPES)}&access_type=offline&prompt=consent`;
-  window.open(authUrl, '_blank');
-  document.getElementById('auth-card').innerHTML = `
-    <div class="auth-icon">◈</div>
-    <h2>STEP 2 — PASTE YOUR CODE</h2>
-    <p style="font-family:'IBM Plex Sans',sans-serif;font-size:11px;color:#666;line-height:1.8;margin-bottom:20px;">
-      Google opened in a new tab. Sign in and click <strong style="color:#ccc">Allow</strong>.<br><br>
-      You'll land on a page saying <strong style="color:#ccc">"This site can't be reached"</strong> — that's normal.<br><br>
-      Copy the <strong style="color:#ccc">full URL</strong> from that page's address bar and paste it below:
-    </p>
-    <input id="code-input" type="text" placeholder="Paste the full localhost://... URL here"
-      style="width:100%;background:#080809;border:1px solid #2d6e2d;border-radius:4px;color:#c8c4b8;font-size:11px;padding:10px;font-family:'IBM Plex Mono',monospace;outline:none;margin-bottom:16px;display:block;">
-    <button id="connect-btn" onclick="handleManualCode()" style="background:#2d6e2d;border:none;border-radius:6px;color:#fff;padding:10px 24px;font-size:11px;font-family:'IBM Plex Mono',monospace;cursor:pointer;letter-spacing:0.08em;">CONNECT ↑</button>
-  `;
+  window.location.href = authUrl;
 }
 
 function handleManualCode() {
@@ -601,6 +589,19 @@ async function handleComposeAction(to, subject, prompt) {
   addMessage('user', `Draft + open compose for ${to}`);
   loading = true;
   renderMessages();
+
+// Auto-detect OAuth redirect on page load
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  if (code) {
+    // Clean up URL
+    window.history.replaceState({}, document.title, '/');
+    // Hide auth overlay and exchange code
+    document.getElementById('auth-overlay').style.display = 'none';
+    exchangeCode(code);
+  }
+})();
   try {
     const response = await fetch('/api/chat', {
       method: 'POST',

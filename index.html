@@ -590,18 +590,6 @@ async function handleComposeAction(to, subject, prompt) {
   loading = true;
   renderMessages();
 
-// Auto-detect OAuth redirect on page load
-(function() {
-  const params = new URLSearchParams(window.location.search);
-  const code = params.get('code');
-  if (code) {
-    // Clean up URL
-    window.history.replaceState({}, document.title, '/');
-    // Hide auth overlay and exchange code
-    document.getElementById('auth-overlay').style.display = 'none';
-    exchangeCode(code);
-  }
-})();
   try {
     const response = await fetch('/api/chat', {
       method: 'POST',
@@ -801,6 +789,17 @@ document.getElementById('user-input').addEventListener('keydown', function(e) {
 document.getElementById('send-btn').onclick = () => sendMessage();
 
 renderMessages();
+
+// Auto-detect OAuth redirect on page load
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  if (code) {
+    window.history.replaceState({}, document.title, '/');
+    document.getElementById('auth-overlay').style.display = 'none';
+    exchangeCode(code);
+  }
+})();
 </script>
 </body>
 </html>

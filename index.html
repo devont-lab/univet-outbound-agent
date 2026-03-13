@@ -190,7 +190,7 @@ const REDIRECT_URI = 'https://univet-outbound-agent.vercel.app';
 const SCOPES = 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send';
 
 // ─── STATE ────────────────────────────────────────────────
-let accessToken = null;
+let accessToken = sessionStorage.getItem('univet_access_token') || null;
 let emails = [];
 let selectedEmail = null;
 let messages = [{ role:'assistant', content:'👋 Agent v4 is live with Gmail integration.\n\nClick **CONNECT GMAIL** in the top right to load your real inbox, then select any email to draft a reply, qualify the lead, or route to the correct rep.' }];
@@ -237,6 +237,7 @@ async function exchangeCode(code) {
     const data = await resp.json();
     if (data.access_token) {
       accessToken = data.access_token;
+      sessionStorage.setItem('univet_access_token', accessToken);
       updateStatus('GMAIL CONNECTED', true);
       document.getElementById('auth-overlay').style.display = 'none';
       await loadEmails();
@@ -790,18 +791,13 @@ document.getElementById('send-btn').onclick = () => sendMessage();
 
 renderMessages();
 
+// Auto-connect if token already exists
+if (accessToken) {
+  updateStatus('GMAIL CONNECTED', true);
+  document.getElementById('auth-overlay').style.display = 'none';
+  loadEmails();
+}
+
 // Auto-detect OAuth redirect on page load
 (function() {
-  const params = new URLSearchParams(window.location.search);
-  const code = params.get('code');
-  if (code) {
-    window.history.replaceState({}, document.title, '/');
-    document.getElementById('auth-overlay').style.display = 'none';
-    exchangeCode(code).then(() => {
-      if (accessToken) loadEmails();
-    });
-  }
-})();
-</script>
-</body>
-</html>
+  const params = new URLSearchParams(window.location.s

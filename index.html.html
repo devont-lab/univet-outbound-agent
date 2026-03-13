@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Univet Loupes — Email Agent v4 (Gmail)</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'IBM Plex Mono', monospace; background: #080809; color: #e8e4d9; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+  ::-webkit-scrollbar { width: 3px; } ::-webkit-scrollbar-thumb { background: #222; }
+
+  #header { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; border-bottom: 1px solid #161618; flex-shrink: 0; }
+  #logo { display: flex; align-items: center; gap: 14px; }
+  #logo-icon { width: 34px; height: 34px; background: linear-gradient(135deg, #1a3a1a, #2d6e2d); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 15px; border: 1px solid #2d6e2d; }
+  #logo-name { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; }
+  #logo-sub { font-size: 9px; color: #444; letter-spacing: 0.12em; }
+  #status { display: flex; align-items: center; gap: 6px; background: #0f1a0f; border: 1px solid #1a3a1a; border-radius: 4px; padding: 4px 10px; cursor: pointer; }
+  #status-dot { width: 6px; height: 6px; border-radius: 50%; background: #666; }
+  #status-dot.connected { background: #4ade80; box-shadow: 0 0 6px #4ade80; }
+  #status-text { font-size: 9px; color: #666; letter-spacing: 0.1em; }
+  #status-text.connected { color: #4ade80; }
+
+  #main { display: flex; flex: 1; overflow: hidden; }
+
+  #sidebar { width: 280px; border-right: 1px solid #161618; display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0; }
+  #sidebar-header { padding: 10px 14px; border-bottom: 1px solid #161618; display: flex; justify-content: space-between; align-items: center; }
+  #sidebar-header span { font-size: 9px; letter-spacing: 0.14em; color: #555; }
+  #refresh-btn { background: transparent; border: 1px solid #1e1e24; color: #555; padding: 2px 8px; border-radius: 3px; font-size: 9px; cursor: pointer; font-family: 'IBM Plex Mono', monospace; transition: all 0.12s; }
+  #refresh-btn:hover { border-color: #4ade80; color: #4ade80; }
+  #email-list { overflow-y: auto; flex: 1; }
+  .email-row { padding: 11px 14px; border-bottom: 1px solid #0f0f11; border-left: 2px solid transparent; cursor: pointer; transition: background 0.12s; }
+  .email-row:hover { background: #111113; }
+  .email-row.selected { background: #0f1410; border-left-color: #4ade80; }
+  .email-from { font-size: 10px; font-weight: 600; color: #d8d4c8; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .email-from.read { font-weight: 400; color: #555; }
+  .email-subject { font-size: 10px; color: #908a80; margin: 3px 0 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .email-subject.read { color: #444; }
+  .email-badges { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+  .badge { font-size: 8px; padding: 1px 6px; border-radius: 3px; }
+  .unread-dot { width: 5px; height: 5px; border-radius: 50%; background: #ff6b00; margin-left: auto; flex-shrink: 0; }
+
+  #actions-panel { padding: 10px 14px; border-top: 1px solid #161618; background: #0a0a0c; }
+  #actions-label { font-size: 9px; color: #444; margin-bottom: 6px; letter-spacing: 0.12em; }
+  .action-btn { display: block; width: 100%; background: transparent; border: 1px solid #1e1e24; color: #666; padding: 6px 10px; border-radius: 4px; font-size: 10px; cursor: pointer; text-align: left; margin-bottom: 4px; font-family: 'IBM Plex Mono', monospace; transition: all 0.12s; }
+  .action-btn:hover { background: #1a1a1f; border-color: #4ade80; color: #4ade80; }
+
+  #chat-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  #toolbar { display: flex; gap: 6px; padding: 8px 16px; border-bottom: 1px solid #161618; overflow-x: auto; flex-shrink: 0; align-items: center; }
+  .toolbar-btn { background: transparent; border: 1px solid #1e1e24; color: #666; padding: 4px 12px; border-radius: 4px; font-size: 9px; cursor: pointer; white-space: nowrap; letter-spacing: 0.06em; font-family: 'IBM Plex Mono', monospace; transition: all 0.12s; }
+  .toolbar-btn:hover { background: #141418; border-color: #555; color: #ccc; }
+  .toolbar-divider { width: 1px; height: 18px; background: #1e1e24; flex-shrink: 0; }
+
+  #messages { flex: 1; overflow-y: auto; padding: 20px 18px; display: flex; flex-direction: column; gap: 14px; }
+  .msg { display: flex; align-items: flex-start; gap: 10px; animation: rise 0.25s ease; }
+  .msg.user { flex-direction: row-reverse; }
+  @keyframes rise { from { opacity:0; transform:translateY(6px); } to { opacity:1; } }
+  .msg-avatar { width: 26px; height: 26px; flex-shrink: 0; background: linear-gradient(135deg, #1a3a1a, #2d6e2d); border: 1px solid #2d5a2d; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 11px; margin-top: 2px; }
+  .msg-bubble { max-width: 74%; padding: 10px 14px; font-size: 12px; line-height: 1.75; }
+  .msg-bubble.assistant { background: #0d0d10; border: 1px solid #161618; border-radius: 2px 10px 10px 10px; color: #b8b4a8; font-family: 'IBM Plex Sans', sans-serif; }
+  .msg-bubble.user { background: #0f1a0f; border: 1px solid #1a3a1a; border-radius: 10px 10px 2px 10px; color: #8acc8a; }
+  .dots span { display:inline-block; width:5px; height:5px; background:#4ade80; border-radius:50%; margin:0 2px; animation:blink 1.1s infinite; }
+  .dots span:nth-child(2){animation-delay:.18s} .dots span:nth-child(3){animation-delay:.36s}
+  @keyframes blink { 0%,80%,100%{opacity:.15;transform:scale(.7)} 40%{opacity:1;transform:scale(1)} }
+
+  #input-area { padding: 14px 18px; border-top: 1px solid #161618; }
+  #input-box { display: flex; gap: 10px; align-items: flex-end; background: #0d0d10; border: 1px solid #1e1e24; border-radius: 8px; padding: 10px 12px; }
+  #user-input { flex: 1; background: transparent; border: none; color: #c8c4b8; font-size: 12px; resize: none; font-family: 'IBM Plex Mono', monospace; line-height: 1.5; max-height: 120px; overflow-y: auto; outline: none; }
+  #send-btn { background: #2d6e2d; border: none; border-radius: 6px; width: 30px; height: 30px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 13px; color: #fff; transition: background 0.12s; flex-shrink: 0; }
+  #send-btn:hover:not(:disabled) { background: #3bcf70; }
+  #send-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  #footer-text { font-size: 9px; color: #222; margin-top: 5px; text-align: center; letter-spacing: 0.08em; }
+
+  /* Auth overlay */
+  #auth-overlay { position: fixed; inset: 0; background: #080809; display: flex; align-items: center; justify-content: center; z-index: 100; }
+  #auth-card { background: #0d0d10; border: 1px solid #1e1e24; border-radius: 12px; padding: 40px; max-width: 420px; width: 90%; text-align: center; }
+  #auth-card .auth-icon { font-size: 36px; margin-bottom: 16px; }
+  #auth-card h2 { font-size: 14px; font-weight: 600; letter-spacing: 0.1em; margin-bottom: 8px; }
+  #auth-card p { font-size: 11px; color: #666; line-height: 1.6; margin-bottom: 24px; font-family: 'IBM Plex Sans', sans-serif; }
+  #connect-btn { background: #2d6e2d; border: none; border-radius: 6px; color: #fff; padding: 10px 24px; font-size: 11px; font-family: 'IBM Plex Mono', monospace; cursor: pointer; letter-spacing: 0.08em; transition: background 0.12s; }
+  #connect-btn:hover { background: #3bcf70; }
+
+  /* Send email modal */
+  #send-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; z-index: 200; }
+  #send-modal.open { display: flex; }
+  #send-card { background: #0d0d10; border: 1px solid #1e1e24; border-radius: 12px; padding: 24px; width: 90%; max-width: 600px; }
+  #send-card h3 { font-size: 11px; letter-spacing: 0.1em; margin-bottom: 16px; color: #888; }
+  .send-field { margin-bottom: 12px; }
+  .send-field label { font-size: 9px; color: #555; letter-spacing: 0.1em; display: block; margin-bottom: 4px; }
+  .send-field input, .send-field textarea { width: 100%; background: #080809; border: 1px solid #1e1e24; border-radius: 4px; color: #c8c4b8; font-size: 11px; padding: 8px 10px; font-family: 'IBM Plex Mono', monospace; outline: none; }
+  .send-field textarea { resize: vertical; min-height: 140px; line-height: 1.6; }
+  .send-field input:focus, .send-field textarea:focus { border-color: #2d6e2d; }
+  #modal-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+  .modal-btn { background: transparent; border: 1px solid #1e1e24; color: #666; padding: 6px 16px; border-radius: 4px; font-size: 10px; cursor: pointer; font-family: 'IBM Plex Mono', monospace; transition: all 0.12s; }
+  .modal-btn:hover { border-color: #555; color: #ccc; }
+  .modal-btn.primary { background: #2d6e2d; border-color: #2d6e2d; color: #fff; }
+  .modal-btn.primary:hover { background: #3bcf70; }
+
+  .empty-state { text-align: center; padding: 40px 20px; color: #333; font-size: 10px; line-height: 2; }
+</style>
+</head>
+<body>
+
+<!-- Auth Overlay -->
+<div id="auth-overlay">
+  <div id="auth-card">
+    <div class="auth-icon">◈</div>
+    <h2>UNIVET LOUPES — EMAIL AGENT v4</h2>
+    <p style="font-family:'IBM Plex Sans',sans-serif;font-size:11px;color:#666;line-height:1.8;margin-bottom:20px;">Enter your Anthropic API key, then connect your Gmail account to get started.</p>
+    <button id="connect-btn" onclick="startAuth()">CONNECT GMAIL →</button>
+  </div>
+</div>
+
+<!-- Send Modal -->
+<div id="send-modal">
+  <div id="send-card">
+    <h3>SEND EMAIL</h3>
+    <div class="send-field">
+      <label>TO</label>
+      <input type="text" id="modal-to" placeholder="recipient@example.com">
+    </div>
+    <div class="send-field">
+      <label>SUBJECT</label>
+      <input type="text" id="modal-subject" placeholder="Subject line">
+    </div>
+    <div class="send-field">
+      <label>MESSAGE</label>
+      <textarea id="modal-body" placeholder="Email body..."></textarea>
+    </div>
+    <div id="modal-btns">
+      <button class="modal-btn" onclick="closeModal()">CANCEL</button>
+      <button class="modal-btn primary" onclick="sendGmailReply()">SEND ↑</button>
+    </div>
+  </div>
+</div>
+
+<div id="header">
+  <div id="logo">
+    <div id="logo-icon">◈</div>
+    <div>
+      <div id="logo-name">UNIVET LOUPES</div>
+      <div id="logo-sub">INSIDE SALES · EMAIL AGENT v4 · GMAIL · HOSTED</div>
+    </div>
+  </div>
+  <div id="status" onclick="startAuth()">
+    <div id="status-dot"></div>
+    <span id="status-text">NOT CONNECTED — CLICK TO CONNECT</span>
+  </div>
+</div>
+
+<div id="main">
+  <div id="sidebar">
+    <div id="sidebar-header">
+      <span id="inbox-label">INBOX</span>
+      <button id="refresh-btn" onclick="loadEmails()">↻ REFRESH</button>
+    </div>
+    <div id="email-list"><div class="empty-state">Connect Gmail<br>to load your inbox</div></div>
+    <div id="actions-panel" style="display:none;">
+      <div id="actions-label">SELECTED EMAIL ACTIONS</div>
+      <div id="action-buttons"></div>
+    </div>
+  </div>
+
+  <div id="chat-area">
+    <div id="toolbar">
+      <button class="toolbar-btn" id="toggle-sidebar" onclick="toggleSidebar()">◂ INBOX</button>
+      <div class="toolbar-divider"></div>
+      <button class="toolbar-btn" onclick="quickAction('Give me a prioritized summary of the inbox with territory flags noted')">📋 Summarize inbox</button>
+      <button class="toolbar-btn" onclick="quickAction('Which emails need immediate attention and why?')">🔥 Urgent first</button>
+      <button class="toolbar-btn" onclick="quickAction('What Odoo CRM actions should I take for each email? Note territory routing where applicable.')">🔗 Odoo actions</button>
+      <button class="toolbar-btn" onclick="quickAction('Categorize all emails with labels, priority, and territory routing')">🏷️ Categorize all</button>
+      <button class="toolbar-btn" onclick="openBlankCompose()">✉️ Compose</button>
+    </div>
+    <div id="messages"></div>
+    <div id="input-area">
+      <div id="input-box">
+        <textarea id="user-input" rows="1" placeholder="Draft, triage, qualify, or route a lead... (Enter to send)"></textarea>
+        <button id="send-btn" disabled>↑</button>
+      </div>
+      <div id="footer-text">UNIVET LOUPES · INSIDE SALES AGENT v4 · GMAIL CONNECTED · 2026 PRODUCT KNOWLEDGE</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── CONFIG ───────────────────────────────────────────────
+const CLIENT_ID = '200614103560-sk80h9e5d1m0tk5l4fco980r2pcunal8.apps.googleusercontent.com';
+const CLIENT_SECRET = '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';
+const REDIRECT_URI = 'https://localhost';
+const SCOPES = 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send';
+
+// ─── STATE ────────────────────────────────────────────────
+let accessToken = null;
+let emails = [];
+let selectedEmail = null;
+let messages = [{ role:'assistant', content:'👋 Agent v4 is live with Gmail integration.\n\nClick **CONNECT GMAIL** in the top right to load your real inbox, then select any email to draft a reply, qualify the lead, or route to the correct rep.' }];
+let loading = false;
+let sidebarOpen = true;
+
+
+// ─── AUTH ─────────────────────────────────────────────────
+function startAuth() {
+  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code&scope=${encodeURIComponent(SCOPES)}&access_type=offline&prompt=consent`;
+  window.open(authUrl, '_blank');
+  document.getElementById('auth-card').innerHTML = `
+    <div class="auth-icon">◈</div>
+    <h2>STEP 2 — PASTE YOUR CODE</h2>
+    <p style="font-family:'IBM Plex Sans',sans-serif;font-size:11px;color:#666;line-height:1.8;margin-bottom:20px;">
+      Google opened in a new tab. Sign in and click <strong style="color:#ccc">Allow</strong>.<br><br>
+      You'll land on a page saying <strong style="color:#ccc">"This site can't be reached"</strong> — that's normal.<br><br>
+      Copy the <strong style="color:#ccc">full URL</strong> from that page's address bar and paste it below:
+    </p>
+    <input id="code-input" type="text" placeholder="Paste the full localhost://... URL here"
+      style="width:100%;background:#080809;border:1px solid #2d6e2d;border-radius:4px;color:#c8c4b8;font-size:11px;padding:10px;font-family:'IBM Plex Mono',monospace;outline:none;margin-bottom:16px;display:block;">
+    <button id="connect-btn" onclick="handleManualCode()" style="background:#2d6e2d;border:none;border-radius:6px;color:#fff;padding:10px 24px;font-size:11px;font-family:'IBM Plex Mono',monospace;cursor:pointer;letter-spacing:0.08em;">CONNECT ↑</button>
+  `;
+}
+
+function handleManualCode() {
+  const input = document.getElementById('code-input').value.trim();
+  let code = null;
+  try {
+    const url = new URL(input);
+    code = url.searchParams.get('code');
+  } catch(e) {
+    if (input.length > 10 && !input.includes(' ')) code = input;
+  }
+  if (!code) {
+    alert('Could not find the auth code. Please paste the full URL from the address bar of the page that says This site cannot be reached.');
+    return;
+  }
+  exchangeCode(code);
+}
+
+async function exchangeCode(code) {
+  updateStatus('EXCHANGING TOKEN...', false);
+  try {
+    const resp = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code,
+        client_id: CLIENT_ID,
+        client_secret: CLIENT_SECRET,
+        redirect_uri: REDIRECT_URI,
+        grant_type: 'authorization_code'
+      })
+    });
+    const data = await resp.json();
+    if (data.access_token) {
+      accessToken = data.access_token;
+      updateStatus('GMAIL CONNECTED', true);
+      document.getElementById('auth-overlay').style.display = 'none';
+      await loadEmails();
+    } else {
+      updateStatus('AUTH FAILED — RETRY', false);
+      alert('Authentication failed. Please try again.');
+    }
+  } catch(e) {
+    updateStatus('AUTH ERROR — RETRY', false);
+    alert('Connection error: ' + e.message);
+  }
+}
+
+function updateStatus(text, connected) {
+  document.getElementById('status-text').textContent = text;
+  document.getElementById('status-text').className = connected ? 'connected' : '';
+  document.getElementById('status-dot').className = connected ? 'connected' : '';
+}
+
+// ─── GMAIL LABELS / ARCHIVE / FOLLOW-UP ──────────────────
+async function ensureLabel(name) {
+  // Get or create a Gmail label by name, return its ID
+  const resp = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/labels', {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  const data = await resp.json();
+  const existing = data.labels?.find(l => l.name === name);
+  if (existing) return existing.id;
+  // Create it
+  const create = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/labels', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, labelListVisibility: 'labelShow', messageListVisibility: 'show' })
+  });
+  const created = await create.json();
+  return created.id;
+}
+
+async function applyLabel(messageId, labelName) {
+  if (!accessToken) return;
+  try {
+    const labelId = await ensureLabel(labelName);
+    await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/modify`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ addLabelIds: [labelId] })
+    });
+  } catch(e) { console.error('Label error:', e); }
+}
+
+async function archiveEmail(messageId) {
+  if (!accessToken) return;
+  try {
+    await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/modify`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ removeLabelIds: ['INBOX'] })
+    });
+    // Remove from local list and re-render
+    emails = emails.filter(e => e.id !== messageId);
+    selectedEmail = null;
+    document.getElementById('actions-panel').style.display = 'none';
+    renderEmails();
+    addMessage('assistant', '✅ Email archived and removed from inbox.');
+  } catch(e) { addMessage('assistant', '⚠️ Archive failed. Please try again.'); }
+}
+
+async function flagFollowUp(messageId) {
+  if (!accessToken) return;
+  try {
+    await applyLabel(messageId, 'Univet — Follow Up');
+    // Also star it in Gmail
+    await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/modify`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ addLabelIds: ['STARRED'] })
+    });
+    // Update local email object
+    const email = emails.find(e => e.id === messageId);
+    if (email) { email.followUp = true; renderEmails(); }
+    addMessage('assistant', '⭐ Follow-up flag set — this lead is starred in Gmail and labeled "Univet — Follow Up".');
+  } catch(e) { addMessage('assistant', '⚠️ Follow-up flag failed. Please try again.'); }
+}
+
+async function autoLabelEmail(email) {
+  if (!accessToken) return;
+  // Always apply New Lead label on load
+  await applyLabel(email.id, 'Univet — New Lead');
+  // Territory-based labels
+  const territoryLabels = {
+    rep_jo: 'Univet — Rep: Jo Medina',
+    flag_socal: 'Univet — SoCal Flag',
+    rep_denise: 'Univet — Rep: Denise Cisneros',
+    rep_shri: 'Univet — Rep: Shri Ram',
+    rep_darren: 'Univet — Rep: Darren Corbett',
+    rep_ashlee: 'Univet — Rep: Ashlee Boston',
+    inside_sales: 'Univet — Inside Sales',
+  };
+  if (territoryLabels[email.territory]) {
+    await applyLabel(email.id, territoryLabels[email.territory]);
+  }
+}
+
+// ─── GMAIL API ────────────────────────────────────────────
+async function loadEmails() {
+  if (!accessToken) return;
+  document.getElementById('email-list').innerHTML = '<div class="empty-state">Loading inbox...</div>';
+  try {
+    // Get last 20 messages from marketing@univet.it only
+    const listResp = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=20&q=subject:a new lead for you to manage', {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    const listData = await listResp.json();
+    if (!listData.messages) {
+      document.getElementById('email-list').innerHTML = '<div class="empty-state">No emails found</div>';
+      return;
+    }
+
+    // Fetch each message
+    emails = [];
+    await Promise.all(listData.messages.map(async (msg) => {
+      const msgResp = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`, {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+      const msgData = await msgResp.json();
+      const headers = msgData.payload.headers;
+      const getHeader = (name) => headers.find(h => h.name.toLowerCase() === name.toLowerCase())?.value || '';
+
+      // Extract body
+      let body = '';
+      const extractBody = (parts) => {
+        if (!parts) return;
+        for (const part of parts) {
+          if (part.mimeType === 'text/plain' && part.body?.data) {
+            body = atob(part.body.data.replace(/-/g,'+').replace(/_/g,'/'));
+            return;
+          }
+          if (part.parts) extractBody(part.parts);
+        }
+      };
+      if (msgData.payload.body?.data) {
+        body = atob(msgData.payload.body.data.replace(/-/g,'+').replace(/_/g,'/'));
+      } else {
+        extractBody(msgData.payload.parts);
+      }
+
+      const fromFull = getHeader('from');
+      const fromEmail = fromFull.match(/<(.+)>/)?.[1] || fromFull;
+      const fromName = fromFull.match(/^(.+?)\s*</)?.[1]?.replace(/"/g,'') || fromEmail.split('@')[0];
+      const date = new Date(parseInt(msgData.internalDate));
+      const now = new Date();
+      const isToday = date.toDateString() === now.toDateString();
+      const timeStr = isToday ? date.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : date.toLocaleDateString([], {month:'short',day:'numeric'});
+      const isRead = !msgData.labelIds?.includes('UNREAD');
+      const territory = detectTerritory(body + ' ' + getHeader('from'));
+
+      emails.push({
+        id: msg.id,
+        threadId: msgData.threadId,
+        from: fromEmail,
+        fromName,
+        subject: getHeader('subject') || '(no subject)',
+        body: body.slice(0, 2000),
+        time: timeStr,
+        read: isRead,
+        type: detectType(getHeader('subject') + ' ' + body),
+        territory,
+        internalDate: parseInt(msgData.internalDate)
+      });
+    }));
+
+    emails.sort((a,b) => b.internalDate - a.internalDate);
+    // Auto-label all loaded emails in the background
+    emails.forEach(e => autoLabelEmail(e));
+    const unread = emails.filter(e => !e.read).length;
+    document.getElementById('inbox-label').textContent = `INBOX (${emails.length})`;
+    renderEmails();
+    addMessage('assistant', `✅ Gmail connected — ${emails.length} emails loaded, **${unread} unread**.\n\nSelect an email from the inbox to draft a reply, qualify the lead, or route to the correct rep. Or use the quick action buttons above.`);
+  } catch(e) {
+    document.getElementById('email-list').innerHTML = '<div class="empty-state">Error loading emails.<br>Try refreshing.</div>';
+    console.error(e);
+  }
+}
+
+function detectTerritory(text) {
+  const t = text.toLowerCase();
+  if (t.includes(' nj') || t.includes('new jersey') || t.includes(', nj')) return 'rep_jo';
+  if (t.includes(' ny') || t.includes('new york') || t.includes(', ny')) return 'rep_jo';
+  if (t.includes(' ct') || t.includes('connecticut') || t.includes(', ct')) return 'rep_jo';
+  if (t.includes('san diego') || t.includes('los angeles') || t.includes(' la ') || t.includes('orange county') || t.includes(' ca') || t.includes('california')) return 'flag_socal';
+  if (t.includes('las vegas') || t.includes('nevada') || t.includes(' nv')) return 'rep_denise';
+  if (t.includes('ontario') || t.includes('toronto') || t.includes('ottawa')) return 'rep_shri';
+  if (t.includes('quebec') || t.includes('montreal')) return 'rep_darren';
+  if (t.includes('british columbia') || t.includes('alberta') || t.includes('vancouver') || t.includes('calgary')) return 'rep_ashlee';
+  return 'inside_sales';
+}
+
+function detectType(text) {
+  const t = text.toLowerCase();
+  if (t.includes('urgent') || t.includes('asap') || t.includes('quote') || t.includes('purchase order') || t.includes('multiple') || t.includes('team')) return 'hot_lead';
+  if (t.includes('repair') || t.includes('warranty') || t.includes('broken') || t.includes('fix')) return 'support';
+  return 'lead';
+}
+
+// ─── SEND EMAIL ───────────────────────────────────────────
+function openBlankCompose() {
+  document.getElementById('modal-to').value = '';
+  document.getElementById('modal-subject').value = '';
+  document.getElementById('modal-body').value = '';
+  document.getElementById('send-modal').classList.add('open');
+}
+
+function openCompose(to, subject, body) {
+  document.getElementById('modal-to').value = to || '';
+  document.getElementById('modal-subject').value = subject || '';
+  document.getElementById('modal-body').value = body || '';
+  document.getElementById('send-modal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('send-modal').classList.remove('open');
+}
+
+async function sendGmailReply() {
+  if (!accessToken) { alert('Not connected to Gmail.'); return; }
+  const to = document.getElementById('modal-to').value.trim();
+  const subject = document.getElementById('modal-subject').value.trim();
+  const body = document.getElementById('modal-body').value.trim();
+  if (!to || !body) { alert('Please fill in To and Message fields.'); return; }
+
+  const emailLines = [`To: ${to}`, `Subject: ${subject}`, 'Content-Type: text/plain; charset=utf-8', '', body];
+  const raw = btoa(unescape(encodeURIComponent(emailLines.join('\r\n')))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+
+  try {
+    const resp = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ raw })
+    });
+    if (resp.ok) {
+      closeModal();
+      addMessage('assistant', `✅ Email sent to **${to}**.\n\n🔗 ODOO: Log this as a sent email activity on the lead record.`);
+    } else {
+      const err = await resp.json();
+      alert('Send failed: ' + (err.error?.message || 'Unknown error'));
+    }
+  } catch(e) {
+    alert('Send error: ' + e.message);
+  }
+}
+
+// ─── RENDER ───────────────────────────────────────────────
+const typeColors = {
+  hot_lead: { dot:"#ff6b00", label:"🔥 Hot Lead", border:"#ff6b0033", bg:"#1a0a00" },
+  lead:     { dot:"#4ade80", label:"💰 Opportunity", border:"#4ade8033", bg:"#0a1500" },
+  support:  { dot:"#6b8eff", label:"🔧 Support", border:"#6b8eff33", bg:"#0a0a1a" },
+};
+
+const territoryBadges = {
+  rep_jo:      { label:"→ Jo Medina", color:"#6b8eff", bg:"#0a0a1a" },
+  flag_socal:  { label:"⚑ SoCal — Flag", color:"#ffaa00", bg:"#1a1000" },
+  rep_denise:  { label:"→ Denise Cisneros", color:"#ffaa00", bg:"#1a1000" },
+  rep_shri:    { label:"→ Shri Ram", color:"#a78bfa", bg:"#0d0a1a" },
+  rep_darren:  { label:"→ Darren Corbett", color:"#a78bfa", bg:"#0d0a1a" },
+  rep_ashlee:  { label:"→ Ashlee Boston", color:"#a78bfa", bg:"#0d0a1a" },
+};
+
+function renderEmails() {
+  const list = document.getElementById('email-list');
+  if (!emails.length) { list.innerHTML = '<div class="empty-state">No emails found</div>'; return; }
+  list.innerHTML = '';
+  emails.forEach(email => {
+    const tc = typeColors[email.type] || typeColors.lead;
+    const tb = territoryBadges[email.territory];
+    const isSelected = selectedEmail?.id === email.id;
+    const div = document.createElement('div');
+    div.className = 'email-row' + (isSelected ? ' selected' : '');
+    div.innerHTML = `
+      <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+        <span class="email-from ${email.read?'read':''}" style="max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${email.fromName}</span>
+        <span style="font-size:9px;color:#333;flex-shrink:0;margin-left:4px;">${email.time}</span>
+      </div>
+      <div class="email-subject ${email.read?'read':''}">${email.subject}</div>
+      <div class="email-badges">
+        <span class="badge" style="color:${tc.dot};background:${tc.bg};border:1px solid ${tc.border}">${tc.label}</span>
+        ${tb ? `<span class="badge" style="color:${tb.color};background:${tb.bg};border:1px solid ${tb.color}44">${tb.label}</span>` : ''}
+        ${email.followUp ? '<span class="badge" style="color:#fbbf24;background:#1a1500;border:1px solid #fbbf2444">⭐ Follow Up</span>' : ''}
+        ${!email.read ? '<div class="unread-dot"></div>' : ''}
+      </div>`;
+    div.onclick = () => selectEmail(email);
+    list.appendChild(div);
+  });
+}
+
+function selectEmail(email) {
+  selectedEmail = email;
+  renderEmails();
+  const panel = document.getElementById('actions-panel');
+  const btns = document.getElementById('action-buttons');
+  panel.style.display = 'block';
+  btns.innerHTML = '';
+
+  const actions = [
+    {
+      label: "✍️ Draft reply",
+      msg: `Draft a consultative Univet reply to ${email.from} re: "${email.subject}".\n\nEmail body:\n${email.body}\n\nApply specialty-based product knowledge and territory routing. If field rep territory, flag instead of drafting a customer email. After drafting, I will review and send.`
+    },
+    {
+      label: "📤 Draft + compose window",
+      msg: `COMPOSE:${email.from}|||${email.subject.startsWith('Re:') ? email.subject : 'Re: ' + email.subject}|||Draft a consultative Univet reply to ${email.from} re: "${email.subject}".\n\nEmail body:\n${email.body}\n\nApply specialty product knowledge and territory routing.`
+    },
+    {
+      label: "🔗 Odoo action",
+      msg: `What Odoo CRM action for email from ${email.from} about "${email.subject}"? Check territory, assign rep if applicable. Include structured Odoo notes.`
+    },
+    {
+      label: "🔍 Qualify lead",
+      msg: `What key info is missing from ${email.from}'s inquiry about "${email.subject}"? Most important probing questions and territory routing?`
+    },
+    {
+      label: "⭐ Flag follow-up",
+      action: () => flagFollowUp(email.id)
+    },
+    {
+      label: "📦 Archive",
+      action: () => archiveEmail(email.id)
+    },
+  ];
+
+  actions.forEach(a => {
+    const btn = document.createElement('button');
+    btn.className = 'action-btn';
+    btn.textContent = a.label;
+    btn.onclick = () => {
+      if (a.action) {
+        a.action();
+      } else if (a.msg.startsWith('COMPOSE:')) {
+        const parts = a.msg.replace('COMPOSE:','').split('|||');
+        const to = parts[0], subject = parts[1], prompt = parts[2];
+        handleComposeAction(to, subject, prompt);
+      } else {
+        sendMessage(a.msg);
+      }
+    };
+    btns.appendChild(btn);
+  });
+}
+
+async function handleComposeAction(to, subject, prompt) {
+  addMessage('user', `Draft + open compose for ${to}`);
+  loading = true;
+  renderMessages();
+  try {
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1500,
+        system: SYSTEM_PROMPT,
+        messages: [{ role:'user', content: prompt }]
+      })
+    });
+    const data = await response.json();
+    const draft = data.content?.map(b => b.text||'').join('') || '';
+    loading = false;
+    renderMessages();
+    openCompose(to, subject, draft);
+  } catch(e) {
+    loading = false;
+    addMessage('assistant', '⚠️ Could not generate draft. Please try again.');
+    renderMessages();
+  }
+}
+
+// ─── CHAT ─────────────────────────────────────────────────
+const SYSTEM_PROMPT = `You are an expert AI email agent for Univet Loupes — a premium Italian optical technology company and global leader in surgical and dental loupes, headlights, and the DHM. You assist the Inside Sales & Client Success team.
+
+CORE SALES RULES:
+1. QUALIFY FIRST — never recommend without enough info
+2. NO QUOTE OFFERS in first reply
+3. NEVER quote prices — hand off to sales rep
+4. Max 2–3 probing questions per email, woven in naturally
+
+PROBING QUESTIONS (use what's missing, max 2–3):
+- What are you currently using, and what are you looking to improve?
+- Do you wear corrective lenses? (If yes → request RX copy, must be ≤2 years old)
+- What type of loupe are you looking for?
+- What are your top three must-haves?
+- Are you familiar with the difference between reflective and refractive ergo loupes?
+
+TERRITORY ROUTING — do NOT draft customer email for rep territories, flag for Odoo instead:
+- Jo Medina (jo.medina@univetloupes.com): NY, NJ, CT, Eastern PA
+- Ryan Blons (ryan.blons@univetloupes.com): South LA/OC & San Diego — south of 91 freeway
+- Denise Cisneros (denise.cisneros@univetoptics.com): North LA/OC & Las Vegas — north of 91 freeway
+- Rose Clark (rose.clark@univetoptics.com): All other US regions + inside sales
+- SoCal: FLAG for manual routing between Ryan/Denise
+- Ashlee Boston (Ashlee.boston@univetloupes.com): Western Canada
+- Shri Ram (Shri.ram@univetloupes.com): Ontario
+- Darren Corbett (Darren.corbett@univetloupes.com): Quebec
+ODOO NOTES: always include specialty, employment status, product interest, contact prefs, flags.
+
+TWO SEPARATE PRODUCT LINES — NEVER MIX:
+UNIVET TAILOR MADE: Frames = ITA, ONE, ASH, TECHNE, TECHNE RX, LOOK & COOL | Optics = Galilean PRO HD, Prismatic XS ULTRA-HD, Ergo Advanced
+MyERGO: Frames = SOHO, REGENT only | Optics = MyErgo Galilean, MyErgo RFR
+
+UNIVET TAILOR MADE OPTICS:
+- Galilean PRO HD: 2.0x, 2.5x, 3.0x. Wide FOV, lightweight. Best for hygienists, general dentists, first-time users.
+- Prismatic XS ULTRA-HD: 3.5x, 4.0x, 5.0x. High precision. Best for endo, restorative, surgery.
+- Ergo Advanced (Reflective, UNIVET EXCLUSIVE): 3.5x, 4.5x, 5.7x. Chin bends slightly — NOT extreme upright. ~20% lighter than prismatic. TECHNE/ASH = best angle, ITA = least, ONE = discontinued. Cross-sell for refractive ergo users unhappy with upright position.
+
+UNIVET FRAMES (default = TECHNE):
+- TECHNE (new March 2026): All optics. Best ergo angle. Carrier lens up to +/-4 RX. Extended fit Sept 2026.
+- TECHNE RX (older): RX integration. Extended fit available now. Galilean + Prismatic only.
+- ASH: Carbon fiber. Best ergo angle.
+- ITA: Classic Italian. All optics. Ergo compatible (least angle).
+- ONE: Galilean + Prismatic only. Not Ergo Advanced.
+- LOOK & COOL: Galilean ONLY (2.0x–3.0x). Luxury hand-varnished nylon.
+- Extended fit NOW + RX → older TECHNE Asian fit RX. Beyond +/-4 RX → flag for rep.
+
+MyERGO:
+- Galilean: 2.5x, 3.0x. SOHO/REGENT only.
+- RFR: 3.5x, 5.0x, 6.2x. Very upright. Steeper learning curve. SOHO/REGENT only.
+- SOHO (52): Gray, Rose Gold, Purple. REGENT (55): Black, Burgundy, Blue.
+
+HEADLIGHTS (April 1, 2026 — EOS Pro Advance DISCONTINUED, never recommend):
+- LYNX PRO: 50,000 lux, CRI-90, 40hr. Bluetooth + App + Alexa. DEFAULT.
+- LYNX: 38,000 lux, CRI-70, 50hr. Bluetooth + App + Alexa. Endurance.
+- EOS Wireless: 38,000 lux, 140min, 2 batteries. Touchless gesture. Portability.
+
+SPECIALTY RULES:
+- RDH: 2.5x–3.0x Galilean or 3.5x ergo. NEVER above 3.5x. Neck pain → Ergo Advanced.
+- Oral Surgeons: Probe first. Often low mag or just headlight.
+- Endodontists: Prismatic 4.0x–5.0x or Ergo Advanced 4.5x–5.7x.
+- General Dentists: Ask procedures first.
+- Students: MyErgo line. Student pricing available.
+- Returning Univet customers: Skip brand education, ask what to improve.
+- Refractive ergo users unhappy with posture → Ergo Advanced immediately.
+
+FOLLOW-UP:
+- Email 2 (Day 2–3): Four loupe types (instagram.com/p/DKsN4VwyvB_/) + declination angle (instagram.com/p/DKvjsI2JexX/)
+- Email 3 (Day 5–6): Reflective vs refractive (instagram.com/p/DKxnh_ZB5lC/). Clean breakup line.
+
+WARRANTY: Loupes 3yr, Headlights 1yr. 45-day trial. Mag/frame/color change = $600. 20% restocking non-defective. RX non-refundable.
+COMPANY: Univet Loupes Spa, Made in Italy 1997. NA: 3848 Del Amo Blvd Suite 304, Torrance CA 90503. +1-844-715-1268. customerserviceusa@univetoptics.com
+ERGONOMICS: 8/10 dentists get neck/back pain. 29% reduce hours or quit. Loupes reduce pain 70%. Mag reduces errors 50%.
+Remote measuring: ship frames, videos, full support by email/phone/text.
+Sign-off: [Your Name] | Inside Sales & Client Success | Univet Loupes North America | +1-844-715-1268 | customerserviceusa@univetoptics.com`;
+
+function addMessage(role, content) {
+  messages.push({ role, content });
+  renderMessages();
+}
+
+function renderMessages() {
+  const container = document.getElementById('messages');
+  container.innerHTML = '';
+  messages.forEach(msg => {
+    const div = document.createElement('div');
+    div.className = 'msg ' + msg.role;
+    if (msg.role === 'assistant') {
+      div.innerHTML = `<div class="msg-avatar">◈</div><div class="msg-bubble assistant">${fmt(msg.content)}</div>`;
+    } else {
+      div.innerHTML = `<div class="msg-bubble user">${fmt(msg.content)}</div>`;
+    }
+    container.appendChild(div);
+  });
+  if (loading) {
+    const div = document.createElement('div');
+    div.className = 'msg';
+    div.innerHTML = `<div class="msg-avatar">◈</div><div class="msg-bubble assistant"><div class="dots"><span></span><span></span><span></span></div></div>`;
+    container.appendChild(div);
+  }
+  container.scrollTop = container.scrollHeight;
+}
+
+async function sendMessage(text) {
+  const input = document.getElementById('user-input');
+  const userMsg = text || input.value.trim();
+  if (!userMsg || loading) return;
+  input.value = '';
+  input.style.height = 'auto';
+  document.getElementById('send-btn').disabled = true;
+  loading = true;
+  addMessage('user', userMsg);
+
+  // Build context with current inbox
+  const inboxContext = emails.length ? `\n\nCURRENT GMAIL INBOX (${emails.length} emails):\n` + emails.slice(0,10).map(e => `- From: ${e.fromName} <${e.from}> | Subject: ${e.subject} | ${e.read?'Read':'Unread'} | Territory: ${e.territory}`).join('\n') : '';
+
+  try {
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1500,
+        system: SYSTEM_PROMPT + inboxContext,
+        messages: messages.filter(m => m.role !== 'assistant' || messages.indexOf(m) > messages.length - 10).map(m => ({ role:m.role, content:m.content }))
+      })
+    });
+    const data = await response.json();
+    const reply = data.content?.map(b => b.text||'').join('') || "Sorry, couldn't process that.";
+    loading = false;
+    addMessage('assistant', reply);
+  } catch(e) {
+    loading = false;
+    addMessage('assistant', '⚠️ Connection error. Please try again.');
+  }
+  document.getElementById('send-btn').disabled = false;
+}
+
+function quickAction(msg) { sendMessage(msg); }
+
+function fmt(t) {
+  return t.replace(/\*\*(.*?)\*\*/g,"<strong>$1</strong>").replace(/\*(.*?)\*/g,"<em>$1</em>").replace(/\n/g,"<br>");
+}
+
+function toggleSidebar() {
+  sidebarOpen = !sidebarOpen;
+  document.getElementById('sidebar').style.display = sidebarOpen ? 'flex' : 'none';
+  document.getElementById('toggle-sidebar').textContent = sidebarOpen ? '◂ INBOX' : '▸ INBOX';
+}
+
+document.getElementById('user-input').addEventListener('input', function() {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+  document.getElementById('send-btn').disabled = !this.value.trim();
+});
+
+document.getElementById('user-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+
+document.getElementById('send-btn').onclick = () => sendMessage();
+
+renderMessages();
+</script>
+</body>
+</html>

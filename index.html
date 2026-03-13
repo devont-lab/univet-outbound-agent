@@ -1,4 +1,4 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -184,9 +184,9 @@
 
 <script>
 // ─── CONFIG ───────────────────────────────────────────────
-const CLIENT_ID = '200614103560-sk80h9e5d1m0tk5l4fco980r2pcunal8.apps.googleusercontent.com';
-const CLIENT_SECRET = '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';
-const REDIRECT_URI = 'https://localhost';
+const CLIENT_ID = '1091972140182-0t62a7qpm0q7reum747mgn1o360dtcam.apps.googleusercontent.com';
+const CLIENT_SECRET = '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';
+const REDIRECT_URI = 'https://univet-outbound-agent.vercel.app';
 const SCOPES = 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send';
 
 // ─── STATE ────────────────────────────────────────────────
@@ -221,7 +221,7 @@ function handleManualCode() {
   let code = null;
   try {
     const url = new URL(input);
-    code = url.searchParams.get('code');
+    code = url.searchParams.get('code') || new URLSearchParams(url.search).get('code');
   } catch(e) {
     if (input.length > 10 && !input.includes(' ')) code = input;
   }
@@ -627,6 +627,13 @@ async function handleComposeAction(to, subject, prompt) {
 // ─── CHAT ─────────────────────────────────────────────────
 const SYSTEM_PROMPT = `You are an expert AI email agent for Univet Loupes — a premium Italian optical technology company and global leader in surgical and dental loupes, headlights, and the DHM. You assist the Inside Sales & Client Success team.
 
+TONE & STYLE:
+- Warm, confident, and naturally conversational — like a knowledgeable colleague, not a sales bot
+- Positive but grounded — avoid words like "excited", "thrilled", "delighted". Use natural warmth instead.
+- Never repeat information the lead already provided. If they said "general and implant dentistry" once, don't say it again in the same email.
+- When mentioning the three Tailor Made optical systems, bullet them out with a one-line description each so the reader can easily scan them.
+- Keep emails concise — every sentence should earn its place.
+
 CORE SALES RULES:
 1. QUALIFY FIRST — never recommend without enough info
 2. NO QUOTE OFFERS in first reply
@@ -750,7 +757,15 @@ async function sendMessage(text) {
       })
     });
     const data = await response.json();
-    const reply = data.content?.map(b => b.text||'').join('') || "Sorry, couldn't process that.";
+    console.log('API response:', JSON.stringify(data).slice(0, 500));
+    let reply = "Sorry, couldn't process that.";
+    if (data.content && data.content.length > 0) {
+      reply = data.content.map(b => b.text || '').join('');
+    } else if (data.error) {
+      reply = '⚠️ API Error: ' + (data.error.message || JSON.stringify(data.error));
+    } else if (data.type === 'error') {
+      reply = '⚠️ Error: ' + (data.message || JSON.stringify(data));
+    }
     loading = false;
     addMessage('assistant', reply);
   } catch(e) {

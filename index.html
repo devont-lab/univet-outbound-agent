@@ -356,6 +356,18 @@ async function loadEmails() {
   }
 }
 
+function extractProspectEmail(body) {
+  // HubSpot lead emails contain "Email: prospect@email.com" in the body
+  const match = body.match(/Email:\s*([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/i);
+  return match ? match[1].trim() : null;
+}
+
+function extractProspectName(body) {
+  const first = body.match(/First Name:\s*(.+)/i)?.[1]?.trim() || '';
+  const last = body.match(/Last Name:\s*(.+)/i)?.[1]?.trim() || '';
+  return [first, last].filter(Boolean).join(' ') || null;
+}
+
 function detectTerritory(text) {
   const t = text.toLowerCase();
   if (/ nj|new jersey|, nj/.test(t)) return 'rep_jo';
@@ -416,7 +428,11 @@ function selectEmail(email) {
   panel.style.display = 'block';
   btns.innerHTML = '';
   const actions = [
-    { label:'✍️ Draft reply', msg:`Draft a consultative Univet reply to ${email.from} re: "${email.subject}".\n\nEmail body:\n${email.body}\n\nApply specialty-based product knowledge and territory routing. If field rep territory, flag instead of drafting a customer email.` },
+    { label:'✍️ Draft reply', msg:(() => {
+      const pe = extractProspectEmail(email.body);
+      const pn = extractProspectName(email.body);
+      return `Draft a consultative Univet reply to ${pe || email.from}${pn ? ' (' + pn + ')' : ''} re: their loupe inquiry.\n\nLead details:\n${email.body}\n\nApply specialty-based product knowledge and territory routing. If field rep territory, flag instead of drafting a customer email. Address the prospect directly by first name if available.`;
+    })() },
     { label:'📤 Draft + compose', compose: true },
     { label:'🔗 Odoo action', msg:`What Odoo CRM action for email from ${email.from} about "${email.subject}"? Check territory, assign rep if applicable. Include structured Odoo notes.\n\nEmail body:\n${email.body}` },
     { label:'🔍 Qualify lead', msg:`What key info is missing from this inquiry? Most important probing questions and territory routing?\n\nFrom: ${email.from}\nSubject: ${email.subject}\nBody:\n${email.body}` },
@@ -437,8 +453,11 @@ function selectEmail(email) {
 }
 
 async function handleCompose(email) {
-  const prompt = `Draft a consultative Univet reply to ${email.from} re: "${email.subject}".\n\nEmail body:\n${email.body}\n\nApply specialty product knowledge and territory routing.`;
-  addMessage('user', `Draft + compose for ${email.from}`);
+  const prospectEmail = extractProspectEmail(email.body);
+  const prospectName = extractProspectName(email.body);
+  const toAddress = prospectEmail || email.from;
+  const prompt = `Draft a consultative Univet reply to ${prospectEmail || email.from}${prospectName ? ' (' + prospectName + ')' : ''} re: their loupe inquiry.\n\nLead details:\n${email.body}\n\nApply specialty product knowledge and territory routing. Address the prospect by first name if available.`;
+  addMessage('user', `Draft + compose for ${toAddress}`);
   loading = true; renderMessages();
   try {
     const resp = await fetch('/api/chat', {
@@ -448,8 +467,8 @@ async function handleCompose(email) {
     const data = await resp.json();
     const draft = data.content?.map(b=>b.text||'').join('') || '';
     loading = false; renderMessages();
-    document.getElementById('modal-to').value = email.from;
-    document.getElementById('modal-subject').value = email.subject.startsWith('Re:') ? email.subject : 'Re: ' + email.subject;
+    document.getElementById('modal-to').value = toAddress;
+    document.getElementById('modal-subject').value = 'Your Interest in Univet Loupes';
     document.getElementById('modal-body').value = draft;
     document.getElementById('send-modal').classList.add('open');
   } catch(e) {
